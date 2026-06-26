@@ -1,0 +1,3 @@
+cryptography>=42.0
+# icalendar n'est utile que pour la validation locale (optionnel) :
+# icalendar>=5.0
