@@ -43,6 +43,12 @@ prénoms sont irrécupérables.
 
 ## 3. Gérer la liste — commande locale `manage.py`
 
+> **Prérequis : `export CALENDAR_KEY="…"` avant toute commande.** `manage.py`
+> écrit le clair local `data/contacts.json` (gitignoré) **et** re-scelle la
+> source versionnée `data/contacts.json.enc` (blob AES-256-GCM du JSON). Sans la
+> clé exportée, le clair est mis à jour mais le `.enc` **n'est pas** régénéré (un
+> avertissement le signale) — ne committe alors pas un `.enc` périmé.
+
 ```bash
 python manage.py list                         # personnes actives
 python manage.py list --all                   # inclut les ignorées
@@ -60,7 +66,9 @@ python manage.py remove "Paul Durand"         # supprime la fiche
 - **`ignore`** ajoute la personne à la liste `exclude` : elle reste dans le fichier
   mais n'apparaît plus dans le calendrier.
 
-Après modif : `git commit` + `git push` → l'Action régénère et republie tout seul.
+Après modif : `git add data/contacts.json.enc` + `git commit` + `git push` →
+l'Action déchiffre le `.enc` en mémoire (jamais de clair sur le runner),
+régénère et republie le `.ics` tout seul.
 
 ## 4. Home Assistant (pyscript)
 

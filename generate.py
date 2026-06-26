@@ -19,47 +19,41 @@ Usage :
 """
 
 import argparse
-import base64
 import datetime as dt
 import hashlib
-import hmac
 import json
-import os
 from pathlib import Path
 
-try:
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-except ImportError:  # chiffrement indisponible sans le module cryptography
-    AESGCM = None
+from crypto_contacts import decrypt_blob, encrypt_blob, load_key
+
+# Alias : le titre d'un événement est chiffré avec la même primitive que le blob.
+encrypt_label = encrypt_blob
 
 
-def load_key() -> bytes | None:
-    """Charge la clé depuis CALENDAR_KEY (base64 de 32 octets), ou None."""
-    raw = os.environ.get("CALENDAR_KEY", "").strip()
-    if not raw:
-        return None
-    if AESGCM is None:
-        raise SystemExit("CALENDAR_KEY défini mais le module 'cryptography' est absent.")
-    try:
-        key = base64.urlsafe_b64decode(raw)
-    except Exception as exc:
-        raise SystemExit(f"CALENDAR_KEY illisible (base64 attendu) : {exc}")
-    if len(key) != 32:
-        raise SystemExit("CALENDAR_KEY doit décoder vers 32 octets (AES-256).")
-    return key
+def load_contacts(plain_path, key: bytes | None = None) -> dict:
+    """Charge la liste de contacts depuis le clair, sinon le .enc déchiffré.
 
-
-def encrypt_label(key: bytes, plaintext: str) -> str:
-    """Chiffrement AES-256-GCM déterministe → jeton base64 urlsafe.
-
-    Le nonce est dérivé du texte clair (HMAC-SHA256) : un même texte donne
-    toujours le même jeton, ce qui évite de réécrire tout le fichier à chaque
-    build. Côté Home Assistant, un simple AESGCM().decrypt() suffit.
+    - si `plain_path` existe → on le lit (le clair local fait toujours foi) ;
+    - sinon, si `<plain_path>.enc` existe et qu'une clé est fournie → on le
+      déchiffre en mémoire (cas CI : aucun clair n'est écrit sur disque) ;
+    - sinon → erreur explicite.
     """
-    data = plaintext.encode("utf-8")
-    nonce = hmac.new(key, data, hashlib.sha256).digest()[:12]
-    ct = AESGCM(key).encrypt(nonce, data, None)
-    return base64.urlsafe_b64encode(nonce + ct).decode("ascii")
+    plain_path = Path(plain_path)
+    if plain_path.exists():
+        return json.loads(plain_path.read_text(encoding="utf-8"))
+
+    enc_path = plain_path.with_name(plain_path.name + ".enc")
+    if enc_path.exists():
+        if key is None:
+            raise SystemExit(
+                f"❌ {plain_path} absent et CALENDAR_KEY manquant : impossible de "
+                f"déchiffrer {enc_path}."
+            )
+        return json.loads(decrypt_blob(key, enc_path.read_text(encoding="utf-8")))
+
+    raise SystemExit(
+        f"❌ Aucune source de contacts : ni {plain_path} ni {enc_path} introuvables."
+    )
 
 
 def fold(line: str) -> str:
@@ -181,11 +175,11 @@ def main():
                          "interdit de publier des prénoms en clair).")
     args = ap.parse_args()
 
-    data = json.loads(Path(args.input).read_text(encoding="utf-8"))
-    cal_name = data.get("calendar_name", "Anniversaires")
-    tz = data.get("timezone", "Europe/Paris")
     today = dt.date.today()
     key = load_key()
+    data = load_contacts(args.input, key)
+    cal_name = data.get("calendar_name", "Anniversaires")
+    tz = data.get("timezone", "Europe/Paris")
     if args.require_key and key is None:
         raise SystemExit("❌ CALENDAR_KEY absent : génération refusée (--require-key). "
                          "Ajoute le secret avant de publier.")

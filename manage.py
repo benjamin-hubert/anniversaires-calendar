@@ -19,15 +19,44 @@ import json
 import sys
 from pathlib import Path
 
+from crypto_contacts import decrypt_blob, encrypt_blob, load_key
+
 DATA = Path(__file__).parent / "data" / "contacts.json"
 
 
-def load():
-    return json.loads(DATA.read_text(encoding="utf-8"))
+def _enc_path(path: Path) -> Path:
+    return path.with_name(path.name + ".enc")
 
 
-def save(data):
-    DATA.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+def load(path: Path = DATA):
+    """Lit le clair s'il existe, sinon déchiffre le .enc (bootstrap avec la clé)."""
+    path = Path(path)
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    enc = _enc_path(path)
+    if enc.exists():
+        key = load_key()
+        if key is None:
+            raise SystemExit(
+                f"❌ {path} absent et CALENDAR_KEY manquant : impossible de "
+                f"déchiffrer {enc}."
+            )
+        return json.loads(decrypt_blob(key, enc.read_text(encoding="utf-8")))
+    raise SystemExit(f"❌ Aucune source : ni {path} ni {enc} introuvables.")
+
+
+def save(data, path: Path = DATA):
+    """Écrit le clair local, puis (re)scelle le .enc versionné si la clé est là."""
+    path = Path(path)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    key = load_key()
+    enc = _enc_path(path)
+    if key is None:
+        print(f"⚠️  CALENDAR_KEY absent : {enc.name} NON régénéré "
+              f"(ne committe pas un .enc périmé). Exporte la clé puis relance.")
+        return
+    enc.write_text(encrypt_blob(key, json.dumps(data, ensure_ascii=False, indent=2) + "\n"),
+                   encoding="utf-8")
 
 
 def ids_of(person):

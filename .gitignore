@@ -2,5 +2,7 @@ public/
 __pycache__/
 *.pyc
 
-# Données de contacts en clair (jamais versionnées — données personnelles)
+# Données de contacts en clair (jamais versionnées — données personnelles).
+# La règle vise le chemin exact : data/contacts.json.enc (blob chiffré) reste
+# versionné, c'est lui la source publiée.
 data/contacts.json
