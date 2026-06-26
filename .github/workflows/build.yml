@@ -1,17 +1,20 @@
 name: Build & déployer le calendrier ICS
 
 on:
-  # À chaque modification des données ou du script
-  push:
-    branches: [ main ]
-    paths:
-      - "data/contacts.json"
-      - "generate.py"
-      - ".github/workflows/build.yml"
-  # Régénération planifiée : tous les jours à 02:00 UTC
-  # → les âges et la fenêtre glissante restent toujours à jour
-  schedule:
-    - cron: "0 2 * * *"
+  # Déclencheurs automatiques désactivés : le fichier data/contacts.json
+  # n'est plus versionné (données personnelles en clair retirées du repo et
+  # de l'historique). Le job a besoin d'une source de données fournie autrement
+  # (ex. artefact chiffré déchiffré via le secret CALENDAR_KEY) avant de pouvoir
+  # tourner. Tant que ce n'est pas en place, seul le lancement manuel reste,
+  # et il échouera faute de data/contacts.json dans le checkout.
+  #
+  # push:
+  #   branches: [ main ]
+  #   paths:
+  #     - "generate.py"
+  #     - ".github/workflows/build.yml"
+  # schedule:
+  #   - cron: "0 2 * * *"
   # Bouton « Run workflow » manuel dans l'onglet Actions
   workflow_dispatch:
 

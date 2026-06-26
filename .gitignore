@@ -1,3 +1,6 @@
 public/
 __pycache__/
 *.pyc
+
+# Données de contacts en clair (jamais versionnées — données personnelles)
+data/contacts.json
