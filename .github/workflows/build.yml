@@ -1,0 +1,83 @@
+name: Build & déployer le calendrier ICS
+
+on:
+  # À chaque modification des données ou du script
+  push:
+    branches: [ main ]
+    paths:
+      - "data/contacts.json"
+      - "generate.py"
+      - ".github/workflows/build.yml"
+  # Régénération planifiée : tous les jours à 02:00 UTC
+  # → les âges et la fenêtre glissante restent toujours à jour
+  schedule:
+    - cron: "0 2 * * *"
+  # Bouton « Run workflow » manuel dans l'onglet Actions
+  workflow_dispatch:
+
+# Permissions nécessaires au déploiement GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Une seule exécution Pages à la fois
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dépendances
+        run: pip install -r requirements.txt
+
+      - name: Générer l'ICS (chiffré — échoue si la clé manque)
+        env:
+          CALENDAR_KEY: ${{ secrets.CALENDAR_KEY }}
+        run: python generate.py --output public/anniversaires.ics --require-key
+
+      - name: Page d'accueil (index.html)
+        run: |
+          cat > public/index.html <<'HTML'
+          <!doctype html><html lang="fr"><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>Anniversaires Famille & Amis</title>
+          <style>body{font-family:system-ui,sans-serif;max-width:640px;margin:3rem auto;padding:0 1rem;line-height:1.5}code{background:#f0f0f0;padding:.15rem .35rem;border-radius:4px}</style>
+          </head><body>
+          <h1>🎂 Anniversaires Famille &amp; Amis</h1>
+          <p>Abonne-toi à ce calendrier depuis ton agenda (Apple, Google, Outlook…) avec l'URL :</p>
+          <p><code id="u"></code></p>
+          <p><a id="webcal" href="#">S'abonner (webcal://)</a></p>
+          <script>
+            var url = location.origin + location.pathname.replace(/index\.html$/, '') + 'anniversaires.ics';
+            document.getElementById('u').textContent = url;
+            document.getElementById('webcal').href = 'webcal://' + url.replace(/^https?:\/\//, '');
+          </script>
+          </body></html>
+          HTML
+
+      - name: Upload artifact Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Déployer sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
