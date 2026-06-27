@@ -12,6 +12,7 @@ import base64
 import hashlib
 import hmac
 import os
+from pathlib import Path
 
 try:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -19,8 +20,28 @@ except ImportError:  # chiffrement indisponible sans le module cryptography
     AESGCM = None
 
 
+def _load_dotenv() -> None:
+    """Charge un .env local (clé=valeur) sans écraser l'environnement existant.
+
+    Sans dépendance externe : utilisé en local pour fournir CALENDAR_KEY. En CI,
+    le secret est déjà dans l'environnement et le .env est absent, donc no-op.
+    """
+    env_path = Path(__file__).parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        name = name.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(name, value)
+
+
 def load_key() -> bytes | None:
     """Charge la clé depuis CALENDAR_KEY (base64 de 32 octets), ou None."""
+    _load_dotenv()
     raw = os.environ.get("CALENDAR_KEY", "").strip()
     if not raw:
         return None

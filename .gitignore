@@ -6,3 +6,6 @@ __pycache__/
 # La règle vise le chemin exact : data/contacts.json.enc (blob chiffré) reste
 # versionné, c'est lui la source publiée.
 data/contacts.json
+
+# Secret de chiffrement local (CALENDAR_KEY) — jamais versionné.
+.env
